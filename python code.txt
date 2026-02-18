@@ -1,0 +1,227 @@
+# --------- 2x2 Hill Cipher Known Plaintext Attack ---------
+import numpy as np
+MOD = 26
+def mod_inv(a):
+    a %= MOD
+    for i in range(1, MOD):
+        if (a * i) % MOD == 1:
+            return i
+def inv_2x2(M):
+    det = int(round(np.linalg.det(M))) % MOD
+    det_inv = mod_inv(det)
+    adj = np.array([[M[1,1], -M[0,1]],
+                    [-M[1,0], M[0,0]]])
+    return (det_inv * adj) % MOD
+def recover_key(p, c):
+    P = np.array([ord(x)-65 for x in p]).reshape(2,2)
+    C = np.array([ord(x)-65 for x in c]).reshape(2,2)
+    return (C @ inv_2x2(P)) % MOD
+# Example (4 letters each)
+print(recover_key("HELP", "ZEBB"))
+
+
+
+# --------- 3x3 Hill Cipher Known Plaintext Attack ---------
+import numpy as np
+MOD = 26
+def mod_inv(a):
+    a %= MOD
+    for i in range(1, MOD):
+        if (a * i) % MOD == 1:
+            return i
+def inv_matrix(M):
+    det = int(round(np.linalg.det(M))) % MOD
+    det_inv = mod_inv(det)
+    adj = np.round(det * np.linalg.inv(M)).astype(int) % MOD
+    return (det_inv * adj) % MOD
+def recover_key(p, c):
+    P = np.array([ord(x)-65 for x in p]).reshape(3,3)
+    C = np.array([ord(x)-65 for x in c]).reshape(3,3)
+    return (C @ inv_matrix(P)) % MOD
+print(recover_key("GYBNQKURP", "POHPOHPOH"))
+
+
+
+# Simple Playfair Cipher (Encryption)
+key = "KREHE"
+message = "HELLO"
+
+# Step 1: Create 5x5 matrix
+alphabet = "ABCDEFGHIKLMNOPQRSTUVWXYZ"
+key = key.upper().replace("J", "I")
+matrix_string = ""
+for ch in key + alphabet:
+    if ch not in matrix_string:
+        matrix_string += ch
+matrix = [matrix_string[i:i+5] for i in range(0, 25, 5)]
+# Step 2: Prepare message
+message = message.upper().replace("J", "I").replace(" ", "")
+if len(message) % 2 != 0:
+    message += "X"
+# Step 3: Encrypt
+result = ""
+for i in range(0, len(message), 2):
+    a = message[i]
+    b = message[i+1]
+
+    for r in range(5):
+        for c in range(5):
+            if matrix[r][c] == a:
+                r1, c1 = r, c
+            if matrix[r][c] == b:
+                r2, c2 = r, c
+    if r1 == r2:  # same row
+        result += matrix[r1][(c1+1)%5]
+        result += matrix[r2][(c2+1)%5]
+    elif c1 == c2:  # same column
+        result += matrix[(r1+1)%5][c1]
+        result += matrix[(r2+1)%5][c2]
+    else:  # rectangle
+        result += matrix[r1][c2]
+        result += matrix[r2][c1]
+print("Encrypted Text:", result)
+
+
+# --------- Playfair Matrix Comparison---------
+def matrix(key):
+    key = key.upper().replace("J", "I")
+    alpha = "ABCDEFGHIKLMNOPQRSTUVWXYZ"
+    s = ""
+    for c in key + alpha:
+        if c in alpha and c not in s:
+            s += c
+    return [s[i:i+5] for i in range(0,25,5)]
+def same_matrix(k1, k2):
+    return matrix(k1) == matrix(k2)
+# Example
+print("Matrix 1:", matrix("KEYWORD"))
+print("Matrix 2:", matrix("KEYWORDA"))
+print("Same Matrix?", same_matrix("KEYWORD", "KEYWORDA"))
+
+
+#-----------RSA & DSA -----------
+import random, hashlib
+def dsa(m,x,q):
+    k=random.randint(1,q-1)
+    h=int(hashlib.sha1(m.encode()).hexdigest(),16)
+    r=k%q
+    s=((h+x*r)*pow(k,-1,q))%q
+    return (r,s)
+def rsa(m,d,n):
+    h=int(hashlib.sha1(m.encode()).hexdigest(),16)
+    return pow(h,d,n)
+msg="HELLO"
+print("DSA1:", dsa(msg,5,23))
+print("DSA2:", dsa(msg,5,23))   # different (new k)
+
+print("RSA1:", rsa(msg,7,33))
+print("RSA2:", rsa(msg,7,33))   # same
+
+
+#------------1024BITS IN SHA--------
+import random, hashlib
+
+def dsa(m,x,q):
+    k=random.randint(1,q-1)
+    h=int(hashlib.sha1(m.encode()).hexdigest(),16)
+    r=k%q
+    s=((h+x*r)*pow(k,-1,q))%q
+    return (r,s)
+
+def rsa(m,d,n):
+    h=int(hashlib.sha1(m.encode()).hexdigest(),16)
+    return pow(h,d,n)
+
+msg="HELLO"
+
+print("DSA1:", dsa(msg,5,23))
+print("DSA2:", dsa(msg,5,23))   # different (new k)
+
+print("RSA1:", rsa(msg,7,33))
+print("RSA2:", rsa(msg,7,33))   # same
+
+
+
+#-------# SHA-3 lane filling simulation (ignoring permutation)
+
+total_lanes = 25          # 5x5 state
+rate_lanes = 16           # 1024/64
+capacity_lanes = total_lanes - rate_lanes
+
+blocks = 0
+filled = rate_lanes       # P0 already fills 16 lanes
+
+while filled < total_lanes:
+    blocks += 1
+    filled += rate_lanes
+
+print("Capacity lanes initially:", capacity_lanes)
+print("Blocks needed after P0:", blocks)
+print("Total blocks including P0:", blocks + 1)
+
+#-------------CIPHER BLOCK CHAIN with S-DES----------
+def xor(a,b):
+    return ''.join('0' if i==j else '1' for i,j in zip(a,b))
+
+def sdes(x,k):      # simplified S-DES
+    return xor(x,k[:8])
+def cbc_enc(pt,k,iv):
+    c=[]; p=iv
+    for b in pt:
+        y=sdes(xor(b,p),k)
+        c.append(y); p=y
+    return c
+def cbc_dec(ct,k,iv):
+    p=[]; prev=iv
+    for b in ct:
+        x=xor(sdes(b,k),prev)
+        p.append(x); prev=b
+    return p
+
+key="0111111101"
+iv="00000000"
+pt=["00000001","00000010","00000100"]
+ct=cbc_enc(pt,key,iv)
+print("Cipher :", " ".join(ct))
+print("Decrypt:", " ".join(cbc_dec(ct,key,iv)))
+
+
+
+
+# ---------- counter mode with S-Des helpers----------
+def xor(a,b):
+    return ''.join('0' if i==j else '1' for i,j in zip(a,b))
+
+# simplified S-DES (lab short version)
+def sdes_enc(block,key):
+    return xor(block,key[:8])
+
+def sdes_dec(block,key):
+    return xor(block,key[:8])   # same for demo version
+# ---------- CBC Encryption ----------
+def cbc_encrypt(pt,key,iv):
+    c=[]; prev=iv
+    for b in pt:
+        x=xor(b,prev)
+        y=sdes_enc(x,key)
+        c.append(y)
+        prev=y
+    return c
+# ---------- CBC Decryption ----------
+def cbc_decrypt(ct,key,iv):
+    p=[]; prev=iv
+    for b in ct:
+        x=sdes_dec(b,key)
+        y=xor(x,prev)
+        p.append(y)
+        prev=b
+    return p
+
+key = "0111111101"
+iv  = "00000000"
+
+pt = ["00000001","00000010","00000100"]
+ct = cbc_encrypt(pt,key,iv)
+print("Cipher :", " ".join(ct))
+dt = cbc_decrypt(ct,key,iv)
+print("Decrypt:", " ".join(dt))
